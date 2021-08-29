@@ -8,3 +8,6 @@ build-amd64:
 
 build-arm64:
 	make build os=linux arch=arm64
+
+test-run:
+	cd ./configs; go run ../cmd/bot.go

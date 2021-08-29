@@ -1,16 +1,19 @@
-package main
+package internal
 
 import "log"
 
-func logVerbose(v ...interface{}) {
+// LogVerbose ...
+func LogVerbose(v ...interface{}) {
 	logWithPrefix("[verbose]", v...)
 }
 
-func logWarn(v ...interface{}) {
+// LogWarn ...
+func LogWarn(v ...interface{}) {
 	logWithPrefix("[warn]", v...)
 }
 
-func logError(v ...interface{}) {
+// LogError ...
+func LogError(v ...interface{}) {
 	logWithPrefix("[error]", v...)
 }
 
