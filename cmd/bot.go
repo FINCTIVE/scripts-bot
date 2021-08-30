@@ -31,7 +31,7 @@ func main() {
 			if !pass {
 				return
 			}
-			util.SendQuick(m.Sender, "Hi! You can try:"+`<pre>/sh ping baidu.com</pre>`)
+			util.SendQuick(m.Chat, "Hi! You can try:"+`<pre>/sh ping baidu.com</pre>`)
 		})
 
 		bot.Handle("/sh", func(m *tb.Message) {
@@ -42,7 +42,7 @@ func main() {
 
 			// check empty
 			if len(m.Payload) == 0 {
-				util.SendQuick(m.Sender, "No command found.\nExample: "+
+				util.SendQuick(m.Chat, "No command found.\nExample: "+
 					`<pre>/sh ping baidu.com</pre>`,
 					&tb.SendOptions{ReplyTo: m, ParseMode: tb.ModeHTML})
 				return
@@ -58,11 +58,11 @@ func main() {
 			}
 			tasks := pool.List()
 			if len(tasks) == 0 {
-				util.SendQuick(m.Sender, "No running task.")
+				util.SendQuick(m.Chat, "No running task.")
 				return
 			}
 			for _, v := range tasks {
-				util.SendQuick(m.Sender, v)
+				util.SendQuick(m.Chat, v)
 			}
 		})
 
@@ -73,14 +73,14 @@ func main() {
 			}
 			id, parseErr := strconv.Atoi(m.Payload)
 			if parseErr != nil {
-				util.SendQuick(m.Sender, "Please input a task ID number.\nExample: "+
+				util.SendQuick(m.Chat, "Please input a task ID number.\nExample: "+
 					`<pre>/stop 233</pre>`,
 					&tb.SendOptions{ReplyTo: m, ParseMode: tb.ModeHTML})
 				return
 			}
 			ok := pool.Cancel(id)
 			if !ok {
-				util.SendQuick(m.Sender, "Task ID not found.",
+				util.SendQuick(m.Chat, "Task ID not found.",
 					&tb.SendOptions{ReplyTo: m, ParseMode: tb.ModeHTML})
 			}
 		})
@@ -99,37 +99,37 @@ func main() {
 			// download file from telegram server
 			fileURL, saveErr := bot.FileURLByID(m.Document.File.FileID)
 			if saveErr != nil {
-				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
+				util.SendQuick(m.Chat, "Can not save the file! Error: "+saveErr.Error())
 				return
 			}
 			resp, saveErr := http.Get(fileURL)
 			if saveErr != nil {
-				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
+				util.SendQuick(m.Chat, "Can not save the file! Error: "+saveErr.Error())
 				return
 			}
 			bytes, saveErr := ioutil.ReadAll(resp.Body)
 			if saveErr != nil {
-				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
+				util.SendQuick(m.Chat, "Can not save the file! Error: "+saveErr.Error())
 				return
 			}
 			saveErr = resp.Body.Close()
 			if saveErr != nil {
-				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
+				util.SendQuick(m.Chat, "Can not save the file! Error: "+saveErr.Error())
 				return
 			}
 			saveErr = os.WriteFile(path, bytes, 0770)
 			if saveErr != nil {
-				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
+				util.SendQuick(m.Chat, "Can not save the file! Error: "+saveErr.Error())
 				return
 			}
 
 			// checking...
 			saveErr = util.CheckBashSyntax(path)
 			if saveErr != nil {
-				util.SendQuick(m.Sender, saveErr.Error())
+				util.SendQuick(m.Chat, saveErr.Error())
 				saveErr = os.Remove(path) // something wrong, remove the file.
 				if saveErr != nil {
-					util.SendQuick(m.Sender, saveErr.Error())
+					util.SendQuick(m.Chat, saveErr.Error())
 				}
 				return
 			}
@@ -137,7 +137,7 @@ func main() {
 			// finish adding
 			updateCommandList(bot, pool)
 			sendScriptMessage(bot, m, pool, m.Document.FileName)
-			util.SendQuick(m.Sender, "New script added!")
+			util.SendQuick(m.Chat, "New script added!")
 		})
 
 		bot.Handle("/ls", func(m *tb.Message) {
@@ -163,7 +163,7 @@ func sendCmdMessage(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, cmdName str
 	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	taskId, err := pool.Add("bash "+m.Payload, cancel)
 	if err != nil {
-		util.SendQuick(m.Sender, err.Error(), &tb.SendOptions{ReplyTo: m})
+		util.SendQuick(m.Chat, err.Error(), &tb.SendOptions{ReplyTo: m})
 		return
 	}
 
@@ -181,7 +181,7 @@ func sendCmdMessage(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, cmdName str
 
 	// start cmd
 	terminalBytes, cmdDone := util.StartCmd(cmd)
-	util.SendUpdate(m.Sender, terminalBytes, "<pre>", "</pre>", ctx, terminalOptions)
+	util.SendUpdate(m.Chat, terminalBytes, "<pre>", "</pre>", ctx, terminalOptions)
 
 	// stop button pressed, stop the task
 	bot.Handle(&stopButton, func(c *tb.Callback) {
@@ -214,11 +214,11 @@ func sendCmdMessage(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, cmdName str
 			DisableNotification:   true,
 			DisableWebPagePreview: true,
 		}
-		_ = util.Send(m.Sender, util.FormatTerminal(string(*terminalBytes)),
+		_ = util.Send(m.Chat, util.FormatTerminal(string(*terminalBytes)),
 			"<pre>", "</pre>", termFullOptions)
 		// error
 		if cmdErr != nil {
-			util.SendQuick(m.Sender, "<pre>"+cmdErr.Error()+"</pre>",
+			util.SendQuick(m.Chat, "<pre>"+cmdErr.Error()+"</pre>",
 				termFullOptions)
 		}
 	}()
@@ -233,7 +233,7 @@ func sendScriptMessage(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, scriptNa
 	runButton := fileMenu.Data("▶Run", "run"+uniqueStr, scriptName)
 	fileMenu.Inline(fileMenu.Row(delButton, runButton))
 
-	fileMessage := util.SendQuick(m.Sender, "<pre>"+scriptName+"</pre>", &tb.SendOptions{
+	fileMessage := util.SendQuick(m.Chat, "<pre>"+scriptName+"</pre>", &tb.SendOptions{
 		ReplyMarkup: fileMenu,
 		ParseMode:   tb.ModeHTML,
 	})
@@ -260,11 +260,11 @@ func sendScriptMessage(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, scriptNa
 		util.LogVerbose("delete file:", c.Data)
 		errDel := os.Remove(filepath.Join(customScriptsFolder, c.Data))
 		if errDel != nil {
-			util.SendQuick(c.Sender, "Delete file error: "+errDel.Error())
+			util.SendQuick(c.Message.Chat, "Delete file error: "+errDel.Error())
 		}
 		errDel = bot.Delete(fileMessage)
 		if errDel != nil {
-			util.SendQuick(c.Sender, "Delete message error: "+errDel.Error())
+			util.SendQuick(c.Message.Chat, "Delete message error: "+errDel.Error())
 		}
 		// *** Always Respond ***
 		errResp := bot.Respond(c, &tb.CallbackResponse{})
