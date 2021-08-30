@@ -5,9 +5,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os/exec"
+	"regexp"
 	"strings"
-
-	"github.com/acarl005/stripansi"
 )
 
 const terminalBufferSize = 1024 * 10
@@ -87,7 +86,7 @@ func FormatTerminal(input string) string {
 		resultStr = string(outputRunes)
 	}
 	// remove terminal color
-	return stripansi.Strip(resultStr)
+	return StripColorANSI(resultStr)
 }
 
 // CheckBashSyntax ...
@@ -111,4 +110,12 @@ func CheckBashSyntax(filepath string) error {
 		return errors.New(strings.Trim(string(errBytes), "\n "))
 	}
 	return nil
+}
+
+const colorANSI = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
+
+var reRemoveColor = regexp.MustCompile(colorANSI)
+
+func StripColorANSI(str string) string {
+	return reRemoveColor.ReplaceAllString(str, "")
 }
