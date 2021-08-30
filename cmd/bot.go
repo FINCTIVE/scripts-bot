@@ -12,23 +12,19 @@ import (
 	"strconv"
 )
 
-const custumScriptsDir = "scripts"
+const customScriptsFolder = "scripts"
+
+var defaultCommands = []tb.Command{
+	{"/sh", "sh [your command]"},
+	{"/ps", "show all running tasks"},
+	{"/ls", "show script files"},
+	{"/stop", "stop a task by id"},
+}
 
 func main() {
 	util.Launch(func(bot *tb.Bot) {
 		pool := util.NewTaskPool(2000)
-
-		// default commands
-		defaultCommands := []tb.Command{
-			{"/sh", "sh [your command]"},
-			{"/ps", "show all running tasks"},
-			{"/ls", "show script files"},
-			{"/stop", "stop a task by id"},
-		}
-		setCmdListErr := bot.SetCommands(defaultCommands)
-		if setCmdListErr != nil {
-			util.LogWarn(setCmdListErr)
-		}
+		updateCommandList(bot, pool)
 
 		bot.Handle("/start", func(m *tb.Message) {
 			pass := util.CheckUser(m.Sender)
@@ -52,8 +48,7 @@ func main() {
 				return
 			}
 			util.LogVerbose("/sh", m.Payload)
-
-			runCommand(bot, m, pool, "bash", "-c", m.Payload)
+			sendCmdMessage(bot, m, pool, "bash", "-c", m.Payload)
 		})
 
 		bot.Handle("/ps", func(m *tb.Message) {
@@ -90,13 +85,18 @@ func main() {
 			}
 		})
 
+		// upload script file by sending .sh file to the bot
 		bot.Handle(tb.OnDocument, func(m *tb.Message) {
+			pass := util.CheckUser(m.Sender)
+			if !pass {
+				return
+			}
 			if m.Document.MIME != "application/x-shellscript" {
 				return
 			}
-			path := filepath.Join(custumScriptsDir, m.Document.FileName)
+			path := filepath.Join(customScriptsFolder, m.Document.FileName)
 			util.LogVerbose("upload:", path)
-			// download from telegram server
+			// download file from telegram server
 			fileURL, saveErr := bot.FileURLByID(m.Document.File.FileID)
 			if saveErr != nil {
 				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
@@ -119,11 +119,11 @@ func main() {
 				return
 			}
 
-			// syntax
+			// checking...
 			saveErr = util.CheckBashSyntax(path)
 			if saveErr != nil {
 				util.SendQuick(m.Sender, saveErr.Error())
-				saveErr = os.Remove(path)
+				saveErr = os.Remove(path) // something wrong, remove the file.
 				if saveErr != nil {
 					util.SendQuick(m.Sender, saveErr.Error())
 				}
@@ -131,26 +131,8 @@ func main() {
 			}
 
 			// finish adding
-			sendScript(bot, m, pool, m.Document.FileName)
-
-			// update command list
-			commands := defaultCommands
-			files, err := os.ReadDir(custumScriptsDir)
-			if err != nil {
-				util.LogError("ls:", err)
-				return
-			}
-			for _, v := range files {
-				scriptName := "/" + v.Name()[:len(v.Name())-len(filepath.Ext(v.Name()))]
-				commands = append(commands, tb.Command{scriptName, "---"})
-				bot.Handle(scriptName, func(msg *tb.Message) {
-					runCommand(bot, msg, pool, "bash", filepath.Join(custumScriptsDir, v.Name()))
-				})
-			}
-			setCmdListErr = bot.SetCommands(commands)
-			if setCmdListErr != nil {
-				util.LogWarn(setCmdListErr)
-			}
+			updateCommandList(bot, pool)
+			sendScriptMessage(bot, m, pool, m.Document.FileName)
 			util.SendQuick(m.Sender, "New script added!")
 		})
 
@@ -159,19 +141,19 @@ func main() {
 			if !pass {
 				return
 			}
-			files, err := os.ReadDir(custumScriptsDir)
+			files, err := os.ReadDir(customScriptsFolder)
 			if err != nil {
 				util.LogError("ls:", err)
 				return
 			}
 			for _, v := range files {
-				sendScript(bot, m, pool, v.Name())
+				sendScriptMessage(bot, m, pool, v.Name())
 			}
 		})
 	})
 }
 
-func runCommand(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, cmdName string, cmdArgs ...string) {
+func sendCmdMessage(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, cmdName string, cmdArgs ...string) {
 	// init
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
@@ -199,6 +181,10 @@ func runCommand(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, cmdName string,
 
 	// stop button pressed, stop the task
 	bot.Handle(&stopButton, func(c *tb.Callback) {
+		pass := util.CheckUser(m.Sender)
+		if !pass {
+			return
+		}
 		id, errConvStop := strconv.Atoi(c.Data)
 		if errConvStop != nil {
 			util.LogError("stop button err: ", err)
@@ -234,7 +220,7 @@ func runCommand(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, cmdName string,
 	}()
 }
 
-func sendScript(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, scriptName string) {
+func sendScriptMessage(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, scriptName string) {
 	// message options
 	var fileMenu = &tb.ReplyMarkup{}
 	// for some reason, tele bot callback routing doesn't support ".sh"
@@ -249,8 +235,12 @@ func sendScript(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, scriptName stri
 	})
 
 	bot.Handle(&runButton, func(c *tb.Callback) {
+		pass := util.CheckUser(m.Sender)
+		if !pass {
+			return
+		}
 		util.LogVerbose("run file:", c.Data)
-		runCommand(bot, m, pool, "bash", filepath.Join(custumScriptsDir, c.Data))
+		sendCmdMessage(bot, m, pool, "bash", filepath.Join(customScriptsFolder, c.Data))
 		// *** Always Respond ***
 		errResp := bot.Respond(c, &tb.CallbackResponse{})
 		if errResp != nil {
@@ -259,8 +249,12 @@ func sendScript(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, scriptName stri
 	})
 
 	bot.Handle(&delButton, func(c *tb.Callback) {
+		pass := util.CheckUser(m.Sender)
+		if !pass {
+			return
+		}
 		util.LogVerbose("delete file:", c.Data)
-		errDel := os.Remove(filepath.Join(custumScriptsDir, c.Data))
+		errDel := os.Remove(filepath.Join(customScriptsFolder, c.Data))
 		if errDel != nil {
 			util.SendQuick(c.Sender, "Delete file error: "+errDel.Error())
 		}
@@ -274,4 +268,29 @@ func sendScript(bot *tb.Bot, m *tb.Message, pool *util.TaskPool, scriptName stri
 			util.LogError("bot.Response err: ", errResp)
 		}
 	})
+}
+
+func updateCommandList(bot *tb.Bot, pool *util.TaskPool) {
+	// update command list
+	commands := defaultCommands
+	files, err := os.ReadDir(customScriptsFolder)
+	if err != nil {
+		util.LogError("error reading script folder:", err)
+		return
+	}
+	for _, v := range files {
+		scriptName := "/" + v.Name()[:len(v.Name())-len(filepath.Ext(v.Name()))]
+		commands = append(commands, tb.Command{scriptName, "---"})
+		bot.Handle(scriptName, func(msg *tb.Message) {
+			pass := util.CheckUser(msg.Sender)
+			if !pass {
+				return
+			}
+			sendCmdMessage(bot, msg, pool, "bash", filepath.Join(customScriptsFolder, v.Name()))
+		})
+	}
+	setCmdListErr := bot.SetCommands(commands)
+	if setCmdListErr != nil {
+		util.LogWarn(setCmdListErr)
+	}
 }
