@@ -31,7 +31,8 @@ func main() {
 			if !pass {
 				return
 			}
-			util.SendQuick(m.Chat, "Hi! You can try:"+`<pre>/sh ping baidu.com</pre>`)
+			util.SendQuick(m.Chat, "Hi! You can try:"+`<pre>/sh ping baidu.com</pre>`,
+				&tb.SendOptions{ParseMode: tb.ModeHTML})
 		})
 
 		bot.Handle("/sh", func(m *tb.Message) {

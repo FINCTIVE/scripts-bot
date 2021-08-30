@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"strings"
+
+	"github.com/acarl005/stripansi"
 )
 
 const terminalBufferSize = 1024 * 10
@@ -78,12 +80,14 @@ func FormatTerminal(input string) string {
 		}
 	}
 
-	//return string(outputRunes)
+	var resultStr string
 	if maxLength > len(outputRunes) {
-		return string(outputRunes[:maxLength])
+		resultStr = string(outputRunes[:maxLength])
 	} else {
-		return string(outputRunes)
+		resultStr = string(outputRunes)
 	}
+	// remove terminal color
+	return stripansi.Strip(resultStr)
 }
 
 // CheckBashSyntax ...
