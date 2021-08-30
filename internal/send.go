@@ -16,8 +16,8 @@ const longestMessageLen = 4000
 const maxSendRetry = 1000
 
 // SendQuick send quicker!!!
-func SendQuick(sender *tb.User, message string, options ...interface{}) {
-	Send(sender, message, "", "", options...)
+func SendQuick(sender *tb.User, message string, options ...interface{}) (tgMessage *tb.Message) {
+	return Send(sender, message, "", "", options...)
 }
 
 // Send sends message. If failed, retry until it's successful.

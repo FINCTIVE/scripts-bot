@@ -6,6 +6,7 @@ import (
 
 // CheckUser will check whether the username is in the GlobalConfig.yaml
 func CheckUser(sender *tb.User) (pass bool) {
+	LogVerbose("check user: ", sender.Username)
 	if len(GlobalConfig.Users) == 0 || GlobalConfig.Users[0] == "*" {
 		return true
 	}

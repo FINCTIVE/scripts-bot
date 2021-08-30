@@ -1,8 +1,11 @@
 package internal
 
 import (
+	"errors"
 	"io"
+	"io/ioutil"
 	"os/exec"
+	"strings"
 )
 
 const terminalBufferSize = 1024 * 10
@@ -11,7 +14,6 @@ const terminalBufferSize = 1024 * 10
 // and capture its output bytes (combining stdout and stderr) until EOF(or other error)
 // listen to done channel to wait the command finish.
 // Note: DO NOT write to terminalBytes in other goroutine.
-// TODO cancelFunc is strage to call
 func StartCmd(cmd *exec.Cmd) (terminalBytes *[]byte, done chan error) {
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
@@ -48,6 +50,7 @@ func StartCmd(cmd *exec.Cmd) (terminalBytes *[]byte, done chan error) {
 
 // FormatTerminal removes \b and \r characters,
 // and return a string that just like what you see in a terminal.
+// This function is useful for progress bar in terminal.
 func FormatTerminal(input string) string {
 	var inputRunes, outputRunes []rune
 	inputRunes = []rune(input)
@@ -81,4 +84,27 @@ func FormatTerminal(input string) string {
 	} else {
 		return string(outputRunes)
 	}
+}
+
+// CheckBashSyntax ...
+func CheckBashSyntax(filepath string) error {
+	// check syntax error without running it
+	cmd := exec.Command("bash", "-n", filepath)
+	errPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+	errBytes, err := ioutil.ReadAll(errPipe)
+	if err != nil {
+		return err
+	}
+	err = cmd.Wait()
+	if err != nil {
+		return errors.New(strings.Trim(string(errBytes), "\n "))
+	}
+	return nil
 }

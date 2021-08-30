@@ -3,20 +3,24 @@ package main
 import (
 	"context"
 	tb "gopkg.in/tucnak/telebot.v2"
+	"os"
 	"os/exec"
+	"path/filepath"
 	util "scripts-bot/internal"
 	"strconv"
 )
+
+const custumScriptsDir = "scripts"
 
 func main() {
 	util.Launch(func(bot *tb.Bot) {
 		pool := util.NewTaskPool(2000)
 
+		// default commands
 		commands := []tb.Command{
-			//{"/start", "hello!"},
-			{"/add_script", ""},
 			{"/sh", "sh [your command]"},
-			{"/ps", "list running tasks"},
+			{"/ps", "show all running tasks"},
+			{"/ls", "show script files"},
 			{"/stop", "stop a task by id"},
 		}
 		setCmdListErr := bot.SetCommands(commands)
@@ -29,20 +33,7 @@ func main() {
 			if !pass {
 				return
 			}
-			util.SendQuick(m.Sender, "hi!")
-		})
-
-		bot.Handle("/add_script", func(m *tb.Message) {
-			pass := util.CheckUser(m.Sender)
-			if !pass {
-				return
-			}
-
-			util.SendQuick(m.Sender, "test!")
-			newCommandErr := bot.SetCommands(commands)
-			if newCommandErr != nil {
-				util.LogWarn(newCommandErr)
-			}
+			util.SendQuick(m.Sender, "Hi! You can try:"+`<pre>/sh ping baidu.com</pre>`)
 		})
 
 		bot.Handle("/sh", func(m *tb.Message) {
@@ -94,6 +85,59 @@ func main() {
 			if !ok {
 				util.SendQuick(m.Sender, "Task ID not found.",
 					&tb.SendOptions{ReplyTo: m, ParseMode: tb.ModeHTML})
+			}
+		})
+
+		bot.Handle("/ls", func(m *tb.Message) {
+			pass := util.CheckUser(m.Sender)
+			if !pass {
+				return
+			}
+			files, err := os.ReadDir(custumScriptsDir)
+			if err != nil {
+				util.LogError("ls:", err)
+				return
+			}
+			for _, v := range files {
+				// message options
+				var fileMenu = &tb.ReplyMarkup{}
+				// for some reason, tele bot callback routing doesn't support ".sh"
+				uniqueStr := v.Name()[:len(v.Name())-len(filepath.Ext(v.Name()))]
+				delButton := fileMenu.Data("🗑️Delete", "del"+uniqueStr, v.Name())
+				runButton := fileMenu.Data("▶Run", "run"+uniqueStr, v.Name())
+				fileMenu.Inline(fileMenu.Row(delButton, runButton))
+
+				fileMessage := util.SendQuick(m.Sender, "<pre>"+v.Name()+"</pre>", &tb.SendOptions{
+					ReplyMarkup: fileMenu,
+					ParseMode:   tb.ModeHTML,
+				})
+
+				bot.Handle(&runButton, func(c *tb.Callback) {
+					util.LogVerbose("run file:", c.Data)
+					runCommand(m, pool, bot, "bash", filepath.Join(custumScriptsDir, c.Data))
+					// *** Always Respond ***
+					errResp := bot.Respond(c, &tb.CallbackResponse{})
+					if errResp != nil {
+						util.LogError("bot.Response err: ", err)
+					}
+				})
+
+				bot.Handle(&delButton, func(c *tb.Callback) {
+					util.LogVerbose("delete file:", c.Data)
+					errDel := os.Remove(filepath.Join(custumScriptsDir, c.Data))
+					if errDel != nil {
+						util.SendQuick(c.Sender, "Delete file error: "+errDel.Error())
+					}
+					errDel = bot.Delete(fileMessage)
+					if errDel != nil {
+						util.SendQuick(c.Sender, "Delete message error: "+errDel.Error())
+					}
+					// *** Always Respond ***
+					errResp := bot.Respond(c, &tb.CallbackResponse{})
+					if errResp != nil {
+						util.LogError("bot.Response err: ", err)
+					}
+				})
 			}
 		})
 	})
