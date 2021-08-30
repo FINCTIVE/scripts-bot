@@ -103,12 +103,16 @@ func main() {
 				return
 			}
 			resp, saveErr := http.Get(fileURL)
-			defer resp.Body.Close()
 			if saveErr != nil {
 				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
 				return
 			}
 			bytes, saveErr := ioutil.ReadAll(resp.Body)
+			if saveErr != nil {
+				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
+				return
+			}
+			saveErr = resp.Body.Close()
 			if saveErr != nil {
 				util.SendQuick(m.Sender, "Can not save the file! Error: "+saveErr.Error())
 				return
