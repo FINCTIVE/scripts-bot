@@ -16,15 +16,16 @@ const longestMessageLen = 4000
 const maxSendRetry = 1000
 
 // SendQuick send quicker!!!
-func SendQuick(to tb.Recipient, message string, options ...interface{}) (tgMessage *tb.Message) {
-	return Send(to, message, "", "", options...)
+func SendQuick(bot *tb.Bot, to tb.Recipient, message string, options ...interface{}) (tgMessage *tb.Message) {
+	return Send(bot, to, message, "", "", options...)
 }
 
 // Send sends message. If failed, retry until it's successful.
 // Also, Send() split long message into small pieces. and SendQuick them separately.
 // (Telegram has message length limit.)
 // It adds prefix and suffix to every single messages.
-func Send(to tb.Recipient, message, prefix, suffix string, options ...interface{}) (tgMessage *tb.Message) {
+func Send(bot *tb.Bot, to tb.Recipient,
+	message, prefix, suffix string, options ...interface{}) (tgMessage *tb.Message) {
 	if len(message) == 0 {
 		return nil
 	}
@@ -32,7 +33,7 @@ func Send(to tb.Recipient, message, prefix, suffix string, options ...interface{
 	retryCounter := 0
 	for {
 		var err error
-		tgMessage, err = GlobalBot.Send(to, prefix+messages[0]+suffix, options...)
+		tgMessage, err = bot.Send(to, prefix+messages[0]+suffix, options...)
 		if err != nil {
 			LogWarn("send message => err:", err, "; message:", messages[0])
 			retryCounter++
@@ -42,7 +43,7 @@ func Send(to tb.Recipient, message, prefix, suffix string, options ...interface{
 					"It may not be an issue with Networking."
 				LogError("Max retry.", maxSendRetry, "times.", lastSignalMessage)
 				// last signal: for errors not related with network. Maybe we will get it!
-				_, lastErr := GlobalBot.Send(to, lastSignalMessage, options...)
+				_, lastErr := bot.Send(to, lastSignalMessage, options...)
 				if lastErr != nil {
 					LogError("last Signal err:", lastErr)
 				}
@@ -106,7 +107,7 @@ func splitByLines(input string, limit int) (results []string) {
 // SendUpdate will send messages to the user and update the message per second.
 // For terminal output, use StartCmd() to get terminalBytes and done channel.
 // NOTICE: This function only sends one message. Old words will be replaced with new ones.
-func SendUpdate(to tb.Recipient, messageBytes *[]byte, prefix, suffix string,
+func SendUpdate(bot *tb.Bot, to tb.Recipient, messageBytes *[]byte, prefix, suffix string,
 	ctx context.Context, options ...interface{}) (msg *tb.Message) {
 	// send messages
 	go func() {
@@ -129,7 +130,7 @@ func SendUpdate(to tb.Recipient, messageBytes *[]byte, prefix, suffix string,
 				var err error
 				if msg == nil {
 					// NOTICE: no need to use send(), no retry. (sending messages per second)
-					msg, err = GlobalBot.Send(to, messageStr, options...)
+					msg, err = bot.Send(to, messageStr, options...)
 					if err != nil {
 						LogWarn("send terminal err", err)
 						msg = nil
@@ -138,12 +139,12 @@ func SendUpdate(to tb.Recipient, messageBytes *[]byte, prefix, suffix string,
 					if msg.Text != messageStr {
 						// Ignore edit err. The message will be deleted anyway.
 						// A common err is that old message is still the same as the new one.
-						_, _ = GlobalBot.Edit(msg, messageStr, options...)
+						_, _ = bot.Edit(msg, messageStr, options...)
 					}
 				}
 			case <-ctx.Done():
 				if msg != nil {
-					deleteErr := GlobalBot.Delete(msg)
+					deleteErr := bot.Delete(msg)
 					if deleteErr != nil {
 						LogWarn("delete terminal messages err:", deleteErr)
 					}

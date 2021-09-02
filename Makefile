@@ -1,13 +1,7 @@
-.PHONY: build build-amd64 build-arm64
+.PHONY: build run
 
 build:
-	GOOS=$(os) GOARCH=$(arch) go build -o bot .  
+	GOOS=$(os) GOARCH=$(arch) go build -o bot ./cmd/bot.go
 
-build-amd64:
-	make build os=linux arch=amd64
-
-build-arm64:
-	make build os=linux arch=arm64
-
-test-run:
-	cd ./configs; go run ../cmd/bot.go
+run:
+	go run cmd/bot.go

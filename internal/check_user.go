@@ -5,21 +5,21 @@ import (
 )
 
 // CheckUser will check whether the username is in the GlobalConfig.yaml
-func CheckUser(sender *tb.User) (pass bool) {
+func CheckUser(bot *tb.Bot, sender *tb.User, users []string) (pass bool) {
 	LogVerbose("check user: ", sender.Username)
-	if len(GlobalConfig.Users) == 0 || GlobalConfig.Users[0] == "*" {
+	if len(users) == 0 || users[0] == "*" {
 		return true
 	}
 
 	pass = false
-	for _, username := range GlobalConfig.Users {
+	for _, username := range users {
 		if username == sender.Username {
 			pass = true
 			break
 		}
 	}
 	if pass == false {
-		SendQuick(sender, "Sorry, you can't access the bot.")
+		SendQuick(bot, sender, "Sorry, you can't access the bot.")
 	}
 	LogVerbose("check:", sender.Username, "; pass:", pass)
 	return pass
